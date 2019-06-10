@@ -13,6 +13,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let struct_definition = generate_builder_struct_definition(&builder_ident, &ast.data);
     let default_builder_constructor = generate_default_builder_constructor(&builder_ident, &ast.data);
+    let setter_functions = generate_builder_setters(&builder_ident, &ast.data);
 
     // eprintln!("TOKENS: {:#?}", struct_definition);
     let expanded = quote! {
@@ -22,6 +23,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         pub fn builder() -> #builder_ident {
           #default_builder_constructor
         }
+      }
+
+      impl #builder_ident {
+        #setter_functions
       }
     };
 
@@ -74,6 +79,35 @@ fn generate_default_builder_constructor(ident: &Ident, data: &Data) -> TokenStre
                         #ident {
                           #(#fields)*
                         }
+                    };
+                    tokens.into()
+                },
+                _ => unimplemented!(),
+            }
+        }
+        _ => unimplemented!(),
+    }
+}
+
+fn generate_builder_setters(ident: &Ident, data: &Data) -> TokenStream {
+    match *data {
+        Data::Struct(ref data) => {
+            match data.fields {
+                Fields::Named(ref fields) => {
+                    let fields = fields.named.iter().map(|f| {
+                        let name = &f.ident;
+                        let ty = &f.ty;
+
+                        return quote! {
+                          pub fn #name(&mut self, #name: #ty) -> &mut Self {
+                            self.#name = Some(#name);
+                            self
+                          }
+                        }
+                    });
+
+                    let tokens = quote! {
+                      #(#fields)*
                     };
                     tokens.into()
                 },
